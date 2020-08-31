@@ -42,8 +42,8 @@ enum { LOG_TRACE, LOG_DEBUG, LOG_INFO, LOG_WARN, LOG_ERROR, LOG_FATAL };
 #define log_debug(...)
 #define log_info(...)
 #define log_warn(...)
-#define log_error(...)
-#define log_fatal(...)
+#define log_error(...) log_log(LOG_ERROR, __FILE__, __LINE__, __VA_ARGS__)
+#define log_fatal(...) log_log(LOG_FATAL, __FILE__, __LINE__, __VA_ARGS__)
 #endif // NDEBUG
 
 
