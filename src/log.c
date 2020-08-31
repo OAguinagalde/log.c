@@ -45,7 +45,7 @@ static const char *level_strings[] = {
 
 #ifdef LOG_USE_COLOR
 static const char *level_colors[] = {
-  "\x1b[94m", "\x1b[36m", "\x1b[32m", "\x1b[33m", "\x1b[31m", "\x1b[35m"
+  "\x1b[94;1m", "\x1b[36;1m", "\x1b[32;1m", "\x1b[33;1m", "\x1b[31;1m", "\x1b[35;1m"
 };
 #endif
 
