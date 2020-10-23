@@ -5,6 +5,11 @@
  * under the terms of the MIT license. See `log.c` for details.
  */
 
+// For use with android both these defines are needed:
+// #define LOG_ANDROID
+// #define LOG_ANDROID_ID "log_identifier"
+// As well as the proper includes and libreries that the <android/log.h> requires
+
 #ifndef LOG_H
 #define LOG_H
 
@@ -31,30 +36,32 @@ typedef void (*log_LockFn)(bool lock, void *udata);
 enum { LOG_TRACE, LOG_DEBUG, LOG_INFO, LOG_WARN, LOG_ERROR, LOG_FATAL };
 
 #ifndef NDEBUG
-#ifndef CE_ANDROID
-#define log_trace(...) log_log(LOG_TRACE, __FILE__, __LINE__, __VA_ARGS__)
-#define log_debug(...) log_log(LOG_DEBUG, __FILE__, __LINE__, __VA_ARGS__)
-#define log_info(...)  log_log(LOG_INFO,  __FILE__, __LINE__, __VA_ARGS__)
-#define log_warn(...)  log_log(LOG_WARN,  __FILE__, __LINE__, __VA_ARGS__)
-#define log_error(...) log_log(LOG_ERROR, __FILE__, __LINE__, __VA_ARGS__)
-#define log_fatal(...) log_log(LOG_FATAL, __FILE__, __LINE__, __VA_ARGS__)
+#   ifndef LOG_ANDROID
+#       define log_trace(...) log_log(LOG_TRACE, __FILE__, __LINE__, __VA_ARGS__)
+#       define log_debug(...) log_log(LOG_DEBUG, __FILE__, __LINE__, __VA_ARGS__)
+#       define log_info(...)  log_log(LOG_INFO,  __FILE__, __LINE__, __VA_ARGS__)
+#       define log_warn(...)  log_log(LOG_WARN,  __FILE__, __LINE__, __VA_ARGS__)
+#       define log_error(...) log_log(LOG_ERROR, __FILE__, __LINE__, __VA_ARGS__)
+#       define log_fatal(...) log_log(LOG_FATAL, __FILE__, __LINE__, __VA_ARGS__)
+#   else
+#       ifndef LOG_ANDROID_ID
+#       error Both LOG_ANDROID and LOG_ANDROID_ID "identifier" need to be defined
+#       endif // LOG_ANDROID_ID
+#       include <android/log.h>
+#       define log_trace(...) ((void)__android_log_print(ANDROID_LOG_INFO, LOG_ANDROID_ID, __VA_ARGS__))
+#       define log_debug(...) ((void)__android_log_print(ANDROID_LOG_INFO, LOG_ANDROID_ID, __VA_ARGS__))
+#       define log_info(...)  ((void)__android_log_print(ANDROID_LOG_INFO, LOG_ANDROID_ID, __VA_ARGS__))
+#       define log_warn(...)  ((void)__android_log_print(ANDROID_LOG_WARN, LOG_ANDROID_ID, __VA_ARGS__))
+#       define log_error(...) ((void)__android_log_print(ANDROID_LOG_WARN, LOG_ANDROID_ID, __VA_ARGS__))
+#       define log_fatal(...) ((void)__android_log_print(ANDROID_LOG_WARN, LOG_ANDROID_ID, __VA_ARGS__))
+#   endif // LOG_ANDROID
 #else
-#include <android/log.h>
-#define log_trace(...) ((void)__android_log_print(ANDROID_LOG_INFO, "cengine", __VA_ARGS__))
-#define log_debug(...) ((void)__android_log_print(ANDROID_LOG_INFO, "cengine", __VA_ARGS__))
-#define log_info(...)  ((void)__android_log_print(ANDROID_LOG_INFO, "cengine", __VA_ARGS__))
-#define log_warn(...)  ((void)__android_log_print(ANDROID_LOG_WARN, "cengine", __VA_ARGS__))
-#define log_error(...) ((void)__android_log_print(ANDROID_LOG_WARN, "cengine", __VA_ARGS__))
-#define log_fatal(...) ((void)__android_log_print(ANDROID_LOG_WARN, "cengine", __VA_ARGS__))
-#endif // CENGINE_ANDROID
-
-#else
-#define log_trace(...)
-#define log_debug(...)
-#define log_info(...)
-#define log_warn(...)
-#define log_error(...) log_log(LOG_ERROR, __FILE__, __LINE__, __VA_ARGS__)
-#define log_fatal(...) log_log(LOG_FATAL, __FILE__, __LINE__, __VA_ARGS__)
+#   define log_trace(...)
+#   define log_debug(...)
+#   define log_info(...)
+#   define log_warn(...)
+#   define log_error(...) log_log(LOG_ERROR, __FILE__, __LINE__, __VA_ARGS__)
+#   define log_fatal(...) log_log(LOG_FATAL, __FILE__, __LINE__, __VA_ARGS__)
 #endif // NDEBUG
 
 
