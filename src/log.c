@@ -68,7 +68,25 @@ static void stdout_callback(log_Event *ev) {
   fflush(ev->udata);
 }
 
+#ifdef LOG_ANDROID
+// ev->udata expected to be const char*, a log identifier for logcat.
+static void android_log_callback(log_Event *ev) {
+  // char buf[16];
+  // buf[strftime(buf, sizeof(buf), "%H:%M:%S", ev->time)] = '\0';
+  // #ifdef LOG_USE_COLOR
+  //   __android_log_print(ev->level+2, ev->udata,
+  //     "%s %s%-5s\x1b[0m \x1b[90m%s:%d:\x1b[0m",
+  //     buf, level_colors[ev->level], level_strings[ev->level], ev->file, ev->line);
+  // #else
+  //   __android_log_print(ev->level+2, ev->udata,
+  //     "%s %-5s %s:%d:",
+  //     buf, level_strings[ev->level], ev->file, ev->line);
+  // #endif
+  __android_log_vprint(ev->level+2, ev->udata, ev->fmt, ev->ap);
+}
+#endif // LOG_ANDROID
 
+// ev->udata expects a File*.
 static void file_callback(log_Event *ev) {
   char buf[64];
   buf[strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", ev->time)] = '\0';
@@ -78,6 +96,22 @@ static void file_callback(log_Event *ev) {
   vfprintf(ev->udata, ev->fmt, ev->ap);
   fprintf(ev->udata, "\n");
   fflush(ev->udata);
+}
+
+// ev->udata expects a const char*.
+// The file gets opened, written to and closed on every call.
+// Useful if you never know when the application might crash so that the file is closed.
+static void file_bypath_callback(log_Event *ev) {
+  FILE* f = fopen(ev->udata, "a+");
+  char buf[64];
+  buf[strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", ev->time)] = '\0';
+  fprintf(
+    f, "%s %-5s %s:%d: ",
+    buf, level_strings[ev->level], ev->file, ev->line);
+  vfprintf(f, ev->fmt, ev->ap);
+  fprintf(f, "\n");
+  fflush(f);
+  fclose(f);
 }
 
 
@@ -127,6 +161,24 @@ int log_add_fp(FILE *fp, int level) {
   return log_add_callback(file_callback, fp, level);
 }
 
+bool log_add_filePath(char* path, int level, bool create_file) {
+  bool OK = true;
+  if (create_file) {
+    FILE* f = fopen(path, "w+");
+    OK = (f != NULL);
+    assert(f && "Couldn't create file for log_add_filePath()! Make sure path is correct");
+    fclose(f);
+  }
+  return OK && (log_add_callback(file_bypath_callback, path, level) == 0);
+}
+
+#ifdef LOG_ANDROID
+int log_android_setup(char* logcat_identifier, int level) {
+  // We don't need the default stderr printout for android, just add a callback which manages the android logging
+  log_set_quiet(true);
+  return log_add_callback(android_log_callback, logcat_identifier, level);
+}
+#endif // LOG_ANDROID
 
 static void init_event(log_Event *ev, void *udata) {
   if (!ev->time) {
