@@ -28,6 +28,10 @@ typedef struct {
   log_LogFn fn;
   void *udata;
   int level;
+  // For cases where you want to store a path to a file, an application ID
+  // or some other string. It's just easier to store it together with the callback.
+  // Callbacks will use save_str in place of udata when udata == NULL.
+  char save_str[256];
 } Callback;
 
 static struct {
@@ -49,7 +53,8 @@ static const char *level_colors[] = {
 };
 #endif
 
-
+// Unlike other Callbacks, this is a special case. It's de default and unless log_set_quiet(true),
+// will allways run on log_log(). ev->udata is set to stderr.
 static void stdout_callback(log_Event *ev) {
   char buf[16];
   buf[strftime(buf, sizeof(buf), "%H:%M:%S", ev->time)] = '\0';
@@ -145,11 +150,27 @@ void log_set_quiet(bool enable) {
   L.quiet = enable;
 }
 
-
-int log_add_callback(log_LogFn fn, void *udata, int level) {
+// If !udata, then use save_str as udata
+int log_add_callback(log_LogFn fn, void *udata, int level, char* save_str) {
   for (int i = 0; i < MAX_CALLBACKS; i++) {
     if (!L.callbacks[i].fn) {
-      L.callbacks[i] = (Callback) { fn, udata, level };
+      Callback cb;
+      cb.fn = fn;
+      cb.udata = udata;
+      cb.level = level;
+
+      if (save_str) {
+        int index = 0;
+        char c = save_str[index];
+        while (c != '\0') {
+          cb.save_str[index] = c;
+          index++;
+          c = save_str[index];
+        }
+        cb.save_str[index] = '\0';
+      }
+
+      L.callbacks[i] = cb;
       return 0;
     }
   }
@@ -158,7 +179,7 @@ int log_add_callback(log_LogFn fn, void *udata, int level) {
 
 
 int log_add_fp(FILE *fp, int level) {
-  return log_add_callback(file_callback, fp, level);
+  return log_add_callback(file_callback, fp, level, NULL);
 }
 
 bool log_add_filePath(char* path, int level, bool create_file) {
@@ -169,23 +190,27 @@ bool log_add_filePath(char* path, int level, bool create_file) {
     assert(f && "Couldn't create file for log_add_filePath()! Make sure path is correct");
     fclose(f);
   }
-  return OK && (log_add_callback(file_bypath_callback, path, level) == 0);
+  return OK && (log_add_callback(file_bypath_callback, NULL, level, path) == 0);
 }
 
 #ifdef LOG_ANDROID
 int log_android_setup(char* logcat_identifier, int level) {
   // We don't need the default stderr printout for android, just add a callback which manages the android logging
   log_set_quiet(true);
-  return log_add_callback(android_log_callback, logcat_identifier, level);
+  return log_add_callback(android_log_callback, NULL, level, logcat_identifier);
 }
 #endif // LOG_ANDROID
 
-static void init_event(log_Event *ev, void *udata) {
+static void init_event(log_Event *ev, Callback *cb) {
   if (!ev->time) {
     time_t t = time(NULL);
     ev->time = localtime(&t);
   }
-  ev->udata = udata;
+  if (cb->udata) {
+    ev->udata = cb->udata;
+  } else {
+    ev->udata = &cb->save_str[0];
+  }
 }
 
 
@@ -200,7 +225,9 @@ void log_log(int level, const char *file, int line, const char *fmt, ...) {
   lock();
 
   if (!L.quiet && level >= L.level) {
-    init_event(&ev, stderr);
+    time_t t = time(NULL);
+    ev.time = localtime(&t);
+    ev.udata = stderr;
     va_start(ev.ap, fmt);
     stdout_callback(&ev);
     va_end(ev.ap);
@@ -209,7 +236,7 @@ void log_log(int level, const char *file, int line, const char *fmt, ...) {
   for (int i = 0; i < MAX_CALLBACKS && L.callbacks[i].fn; i++) {
     Callback *cb = &L.callbacks[i];
     if (level >= cb->level) {
-      init_event(&ev, cb->udata);
+      init_event(&ev, cb);
       va_start(ev.ap, fmt);
       cb->fn(&ev);
       va_end(ev.ap);

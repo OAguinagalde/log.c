@@ -47,9 +47,17 @@ const char* log_level_string(int level);
 void log_set_lock(log_LockFn fn, void *udata);
 void log_set_level(int level);
 void log_set_quiet(bool enable);
-int log_add_callback(log_LogFn fn, void *udata, int level);
+// If udata == NULL, then save_str will be used for the callback udata.
+// save_str will be copyed in memory on the internal callback struct
+int log_add_callback(log_LogFn fn, void *udata, int level, char* save_str);
 int log_add_fp(FILE *fp, int level);
+// Example of use with android:
+//   ANativeActivity* native_activity;
+//   char path[256];
+//   sprintf(path, "%s/log.txt", native_activity->externalDataPath);
+//   log_add_filePath(path, LOG_DEBUG, true)
 bool log_add_filePath(char* path, int level, bool create_file);
+// Setup for logcat use in android
 int log_android_setup(char* logcat_identifier, int level);
 
 void log_log(int level, const char *file, int line, const char *fmt, ...);
